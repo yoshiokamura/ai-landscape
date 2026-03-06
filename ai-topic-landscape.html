@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Topic Landscape — Consulting Firm</title>
+<!-- Three.js via cdnjs (ローカルファイル不要) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  /* Googleフォントはオプション読み込み。ブロックされてもシステムフォントで表示 */
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --border: #dde1ea;
+    --accent: #0ea87a;
+    --accent2: #d94040;
+    --accent3: #7c52e8;
+    --text: #1a1e2e;
+    --dim: #7a829a;
+    --glow: rgba(14, 168, 122, 0.12);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    /* Syne/IBM Plex Monoが読めなければシステムフォントで代替 */
+    font-family: 'IBM Plex Mono', 'Courier New', Courier, monospace;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  #canvas-container { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  #header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    padding: 16px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(to bottom, rgba(244,245,247,0.97), transparent);
+    z-index: 10;
+  }
+
+  #header h1 {
+    font-family: 'Syne', 'Segoe UI', Arial, sans-serif;
+    font-weight: 800;
+    font-size: 1.1rem;
+    color: #1a1e2e;
+    letter-spacing: 0.05em;
+  }
+  #header h1 span { color: var(--accent); }
+
+  .tag {
+    font-size: 0.6rem;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  #axis-legend {
+    position: fixed;
+    bottom: 20px; left: 20px;
+    width: 260px;
+    background: rgba(255,255,255,0.93);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+    z-index: 10;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+  }
+  #axis-legend h3 {
+    font-family: 'Syne', 'Segoe UI', Arial, sans-serif;
+    font-size: 0.84rem; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 12px;
+    border-bottom: 1px solid var(--border); padding-bottom: 8px;
+  }
+  .axis-row {
+    display: flex; align-items: flex-start;
+    gap: 10px; margin-bottom: 10px;
+    font-size: 0.74rem; line-height: 1.5; color: var(--text);
+  }
+  .axis-label {
+    font-family: 'Syne', 'Segoe UI', Arial, sans-serif;
+    font-weight: 700; font-size: 0.78rem;
+    min-width: 18px; padding: 1px 5px;
+    border-radius: 2px; text-align: center;
+  }
+  .ax-x, .ax-y, .ax-z {
+    background: rgba(85,94,122,0.1); color: #1a1e2e;
+    border: 1px solid #9098b0;
+  }
+
+  #visual-legend {
+    position: fixed;
+    bottom: 20px; right: 20px;
+    width: 240px;
+    background: rgba(255,255,255,0.93);
+    border: 1px solid var(--border);
+    border-radius: 4px; padding: 16px;
+    z-index: 10; backdrop-filter: blur(10px);
+    box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+  }
+  #visual-legend h3 {
+    font-family: 'Syne', 'Segoe UI', Arial, sans-serif;
+    font-size: 0.84rem; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 12px;
+    border-bottom: 1px solid var(--border); padding-bottom: 8px;
+  }
+  .vis-row {
+    display: flex; align-items: center;
+    gap: 10px; margin-bottom: 8px;
+    font-size: 0.73rem; color: var(--text);
+  }
+  .dot-sample { border-radius: 50%; flex-shrink: 0; }
+
+  #topic-panel {
+    position: fixed; top: 70px; right: 20px;
+    width: 270px;
+    background: rgba(255,255,255,0.93);
+    border: 1px solid var(--border);
+    border-radius: 4px; padding: 0;
+    z-index: 10; backdrop-filter: blur(10px);
+    overflow: hidden; box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+  }
+  #topic-panel-header {
+    font-family: 'Syne', 'Segoe UI', Arial, sans-serif;
+    font-size: 0.84rem; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .count-badge {
+    font-size: 0.72rem; color: var(--accent);
+    border: 1px solid rgba(74,240,196,0.3);
+    border-radius: 10px; padding: 1px 8px;
+  }
+  .topic-list {
+    max-height: 380px; overflow-y: auto; padding: 8px 0;
+  }
+  .topic-list::-webkit-scrollbar { width: 3px; }
+  .topic-list::-webkit-scrollbar-track { background: transparent; }
+  .topic-list::-webkit-scrollbar-thumb { background: var(--border); }
+  .topic-item {
+    padding: 7px 16px; font-size: 0.72rem;
+    border-left: 2px solid transparent;
+    transition: all 0.15s; color: var(--dim);
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+  }
+  .topic-item:hover { background: rgba(14,168,122,0.06); color: var(--text); border-left-color: var(--accent); }
+  .topic-item.active { background: rgba(14,168,122,0.10); color: var(--accent); border-left-color: var(--accent); }
+  .topic-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+  #tooltip {
+    position: fixed; pointer-events: none;
+    z-index: 20; display: none; max-width: 300px;
+  }
+  #tooltip.pinned { pointer-events: all; }
+  .tooltip-inner {
+    background: rgba(255,255,255,0.97);
+    border: 1px solid var(--accent); border-radius: 4px;
+    padding: 12px 16px;
+    box-shadow: 0 4px 24px rgba(14,168,122,0.15);
+  }
+  .tooltip-title {
+    font-family: 'Syne', 'Segoe UI', Arial, sans-serif;
+    font-weight: 700; font-size: 0.75rem;
+    color: #1a1e2e; margin-bottom: 8px; line-height: 1.4;
+  }
+  .tooltip-meta { font-size: 0.58rem; color: var(--dim); line-height: 1.8; }
+  .tooltip-meta span { color: var(--text); }
+
+  #coverage {
+    position: fixed; top: 70px; left: 20px;
+    width: 230px; max-height: calc(100vh - 200px);
+    overflow-y: auto;
+    background: rgba(255,255,255,0.93);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 14px 16px; z-index: 10;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+  }
+  #coverage::-webkit-scrollbar { width: 3px; }
+  #coverage::-webkit-scrollbar-track { background: transparent; }
+  #coverage::-webkit-scrollbar-thumb { background: var(--border); }
+  #coverage h3 {
+    font-family: 'Syne', 'Segoe UI', Arial, sans-serif;
+    font-size: 0.82rem; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 12px;
+    border-bottom: 1px solid var(--border); padding-bottom: 8px;
+  }
+  .coverage-bar-row {
+    margin-bottom: 9px; cursor: pointer;
+    border-radius: 3px; padding: 2px 3px;
+    margin-left: -3px; transition: background 0.15s;
+  }
+  .coverage-bar-row:hover { background: rgba(21,88,168,0.06); }
+  .coverage-bar-row.domain-active { background: rgba(21,88,168,0.12); outline: 1px solid rgba(21,88,168,0.3); }
+  .coverage-bar-label { font-size: 0.70rem; display: flex; justify-content: space-between; }
+  .coverage-bar-label span { color: var(--text); }
+  .bar-track { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+</style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<div id="header">
+  <h1>AI TOPIC <span>LANDSCAPE</span></h1>
+  <span class="tag">3D Coverage Map · v1.0</span>
+</div>
+
+<div id="coverage">
+  <h3>Coverage Overview</h3>
+  <div style="font-size:0.66rem;color:var(--dim);margin-bottom:10px;line-height:1.7">
+    <span style="color:#1558a8">■</span> Good (3+) &nbsp;
+    <span style="color:#3a7fc4">■</span> Decent (2) &nbsp;
+    <span style="color:#7aacd4">■</span> Partial (1) &nbsp;
+    <span style="color:#c8d4e8">■</span> Gap (0)
+  </div>
+  <div id="coverage-bars"></div>
+</div>
+
+<div id="topic-panel">
+  <div id="topic-panel-header">
+    <span>Articles <span class="count-badge" id="article-count-badge">11 mapped</span></span>
+  </div>
+  <div class="topic-list" id="topic-list"></div>
+</div>
+
+<div id="axis-legend">
+  <h3>Axes</h3>
+  <div class="axis-row">
+    <span class="axis-label ax-x">X</span>
+    <div><strong style="color:var(--text)">Domain Area</strong><br>Industry sector / life domain affected by AI</div>
+  </div>
+  <div class="axis-row">
+    <span class="axis-label ax-y">Y</span>
+    <div><strong style="color:var(--text)">Autonomy Level</strong><br>Assistive → Copilot → Agent (low) → Agent (high)</div>
+  </div>
+  <div class="axis-row">
+    <span class="axis-label ax-z">Z</span>
+    <div><strong style="color:var(--text)">Cross-cutting Theme</strong><br>Ethics · Risk · Trust · Data · Regulation…</div>
+  </div>
+</div>
+
+<div id="visual-legend">
+  <h3>Visual Encoding</h3>
+  <div class="vis-row">
+    <div class="dot-sample" style="width:10px;height:10px;background:conic-gradient(#0ea87a,#7c52e8,#d94040,#b88800,#1a7ec8,#0ea87a);border-radius:50%;flex-shrink:0"></div>
+    Covered topic (existing article)
+  </div>
+  <div class="vis-row">
+    <div class="dot-sample" style="width:10px;height:10px;border:1.5px dashed #9098b0;border-radius:50%;opacity:0.7;flex-shrink:0"></div>
+    Uncovered opportunity
+  </div>
+  <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+    <div style="font-size:0.70rem;color:var(--dim);margin-bottom:6px;font-weight:600;letter-spacing:0.06em">SIZE = Regulatory Intensity</div>
+    <div class="vis-row"><div style="width:16px;display:flex;justify-content:center;flex-shrink:0"><div class="dot-sample" style="width:6px;height:6px;background:#1a1e2e;border:1px solid #1a1e2e"></div></div>Low</div>
+    <div class="vis-row"><div style="width:16px;display:flex;justify-content:center;flex-shrink:0"><div class="dot-sample" style="width:9px;height:9px;background:#1a1e2e;border:1px solid #1a1e2e"></div></div>Medium</div>
+    <div class="vis-row"><div style="width:16px;display:flex;justify-content:center;flex-shrink:0"><div class="dot-sample" style="width:13px;height:13px;background:#1a1e2e;border:1px solid #1a1e2e"></div></div>High</div>
+  </div>
+  <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px;font-size:0.70rem;color:var(--dim)">
+    <div style="font-weight:600;letter-spacing:0.06em;margin-bottom:5px">COLOR = Value Driver</div>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <span><span style="color:#0ea87a;font-size:0.8em">●</span> Revenue</span>
+      <span><span style="color:#7c52e8;font-size:0.8em">●</span> Risk Reduction</span>
+      <span><span style="color:#d94040;font-size:0.8em">●</span> User Outcomes</span>
+      <span><span style="color:#b88800;font-size:0.8em">●</span> Compliance</span>
+      <span><span style="color:#1a7ec8;font-size:0.8em">●</span> Cost Reduction</span>
+    </div>
+  </div>
+</div>
+
+<div id="tooltip"><div class="tooltip-inner">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+    <div class="tooltip-title" id="tt-title"></div>
+    <button id="tt-close" onclick="clearSelection()" style="background:none;border:none;cursor:pointer;color:var(--dim);font-size:14px;line-height:1;padding:0;flex-shrink:0;pointer-events:all">×</button>
+  </div>
+  <div class="tooltip-meta" id="tt-meta"></div>
+</div></div>
+
+<script>
+// ─── DATA ───
+const DOMAINS = [
+  'Financial Services','Insurance','E-commerce',
+  'Health','Education','Law','Media / Creative',
+  'Philosophy / Ethics','Platform / Infra','Everyday Life','Government'
+];
+const AUTONOMY = ['Assistive','Copilot','Agent (low)','Agent (high)'];
+const THEMES = [
+  'Ethics & Fairness','Trust & Explainability','Risk & Audit',
+  'Data Governance','Regulation','Human Factors','Agents & Autonomy',
+  'Security','IP & Rights','Value / ROI'
+];
+const VALUE_COLORS = {
+  'Revenue':0x0ea87a,'Risk':0x7c52e8,'User outcomes':0xd94040,
+  'Compliance':0xb88800,'Cost':0x1a7ec8
+};
+
+const covered = [
+  {title:"AI Financial Advisors+ Frontiers and Economic Implications",domain:0,autonomy:2,theme:9,regIntensity:2,valueDriver:'Revenue',expert:'Finance',jitter:[0,0,0],summary:'Explores frontier AI advisory systems and macro-economic effects of AI-driven financial guidance.'},
+  {title:"Speed and Trust: The Double Helix of AI-Driven Finance",domain:0,autonomy:1,theme:1,regIntensity:2,valueDriver:'Risk',expert:'Finance',jitter:[0,0,0],summary:'Examines the tension between AI speed in markets and the trust frameworks needed for safe deployment.'},
+  {title:"Agentic AI for Financial Simulation",domain:0,autonomy:3,theme:6,regIntensity:2,valueDriver:'Risk',expert:'Finance',jitter:[0,0,0],summary:'Agent-based simulation of financial scenarios, stress testing, and portfolio optimization.'},
+  {title:"Trust by Design",domain:8,autonomy:1,theme:1,regIntensity:1,valueDriver:'User outcomes',expert:'Design',jitter:[0,0,0],summary:'Design principles for building AI products that earn and maintain user trust from the ground up.'},
+  {title:"The Role of Human Advisors in an AI-Enabled Financial Services World",domain:0,autonomy:1,theme:5,regIntensity:2,valueDriver:'User outcomes',expert:'Finance',jitter:[-0.35,0.25,-0.2],summary:'Rethinking the human-AI division of labor in advisory relationships and client interactions.'},
+  {title:"Trends on AI Applications — Industry, Consulting and Value",domain:8,autonomy:0,theme:9,regIntensity:0,valueDriver:'Revenue',expert:'Economics',jitter:[0,0,0],summary:'Cross-industry survey of AI adoption patterns and ROI measurement frameworks.'},
+  {title:"Tokenization in Financial Services",domain:0,autonomy:0,theme:3,regIntensity:2,valueDriver:'Compliance',expert:'Finance',jitter:[0,0,0],summary:'Asset tokenization on blockchain rails: regulatory landscape, operational implications, and AI integration.'},
+  {title:"AI in Wealth Management",domain:0,autonomy:2,theme:9,regIntensity:2,valueDriver:'Revenue',expert:'Finance',jitter:[0.3,-0.2,0.25],summary:'AI deployment across the wealth management value chain, from prospecting to portfolio rebalancing.'},
+  {title:"Redefining Private Banking",domain:0,autonomy:1,theme:5,regIntensity:2,valueDriver:'User outcomes',expert:'Finance',jitter:[0.3,0,0.3],summary:'How AI is reshaping the ultra-HNW segment: hyper-personalization, banker augmentation, and service evolution.'},
+  {title:"Institutional Client Experience",domain:0,autonomy:1,theme:5,regIntensity:1,valueDriver:'User outcomes',expert:'E-commerce',jitter:[-0.3,-0.25,0.3],summary:'Applying CX design thinking to institutional financial clients in an AI-enabled servicing model.'},
+  {title:"AI Ethics",domain:7,autonomy:0,theme:0,regIntensity:1,valueDriver:'Compliance',expert:'Philosophy',jitter:[0,0,0],summary:'Foundational ethical frameworks for AI development and deployment: fairness, autonomy, and moral responsibility.'}
+];
+
+const opportunities = [
+  {title:"AI in Healthcare Diagnostics",domain:3,autonomy:2,theme:2,regIntensity:2,valueDriver:'User outcomes'},
+  {title:"AI-Driven Legal Research",domain:5,autonomy:1,theme:9,regIntensity:2,valueDriver:'Cost'},
+  {title:"AI in Education / Personalized Learning",domain:4,autonomy:2,theme:5,regIntensity:1,valueDriver:'User outcomes'},
+  {title:"Generative AI for Creative Media",domain:6,autonomy:1,theme:8,regIntensity:0,valueDriver:'Revenue'},
+  {title:"AI & Mental Health Support",domain:3,autonomy:1,theme:0,regIntensity:1,valueDriver:'User outcomes'},
+  {title:"Climate AI & Energy Optimization",domain:10,autonomy:2,theme:9,regIntensity:1,valueDriver:'Cost'},
+  {title:"AI in E-commerce Personalization",domain:2,autonomy:1,theme:5,regIntensity:0,valueDriver:'Revenue'},
+  {title:"AI Security & Adversarial Threats",domain:8,autonomy:2,theme:7,regIntensity:2,valueDriver:'Risk'},
+  {title:"AI Governance & Regulation",domain:10,autonomy:0,theme:4,regIntensity:2,valueDriver:'Compliance'},
+  {title:"Everyday AI Assistants",domain:9,autonomy:1,theme:5,regIntensity:0,valueDriver:'User outcomes'},
+  {title:"AI in Insurance Underwriting",domain:1,autonomy:2,theme:2,regIntensity:2,valueDriver:'Risk'},
+  {title:"Cognitive Neuroscience & AI",domain:7,autonomy:0,theme:0,regIntensity:0,valueDriver:'User outcomes'},
+  {title:"AI Platform & MLOps",domain:8,autonomy:3,theme:6,regIntensity:1,valueDriver:'Cost'},
+  {title:"AI & IP / Content Rights",domain:6,autonomy:1,theme:8,regIntensity:1,valueDriver:'Compliance'},
+  {title:"Food & Franchise AI Optimization",domain:9,autonomy:1,theme:9,regIntensity:0,valueDriver:'Revenue'}
+];
+
+// ─── THREE.JS SCENE ───
+const container = document.getElementById('canvas-container');
+const renderer = new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf4f5f7);
+scene.fog = new THREE.Fog(0xf4f5f7,35,80);
+
+const camera = new THREE.PerspectiveCamera(50,window.innerWidth/window.innerHeight,0.1,200);
+camera.position.set(14,10,18);
+camera.lookAt(0,0,0);
+
+scene.add(new THREE.AmbientLight(0xffffff,0.7));
+const dL = new THREE.DirectionalLight(0xffffff,0.8); dL.position.set(10,20,10); scene.add(dL);
+const dL2 = new THREE.DirectionalLight(0x8ecfff,0.3); dL2.position.set(-8,5,-10); scene.add(dL2);
+
+const SCALE={x:0.7,y:1.5,z:1.0};
+function toPos(domain,autonomy,theme,jitter){
+  const j=jitter||[0,0,0];
+  return new THREE.Vector3(
+    (domain/(DOMAINS.length-1)-0.5)*10*SCALE.x+j[0],
+    (autonomy/(AUTONOMY.length-1)-0.5)*6*SCALE.y+j[1],
+    (theme/(THEMES.length-1)-0.5)*10*SCALE.z+j[2]
+  );
+}
+
+const gridHelper=new THREE.GridHelper(14,12,0xb0b8cc,0xd0d5e0);
+gridHelper.position.y=-4.5; scene.add(gridHelper);
+
+function axisLine(from,to,color){
+  const mat=new THREE.LineBasicMaterial({color,opacity:0.6,transparent:true});
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([from,to]),mat));
+}
+axisLine(new THREE.Vector3(-6,-4.5,0),new THREE.Vector3(6,-4.5,0),0x555e7a);
+axisLine(new THREE.Vector3(-6,-4.5,0),new THREE.Vector3(-6,5,0),0x555e7a);
+axisLine(new THREE.Vector3(-6,-4.5,-5),new THREE.Vector3(-6,-4.5,5),0x555e7a);
+
+function makeTick(from,to,color){
+  const mat=new THREE.LineBasicMaterial({color,opacity:0.5,transparent:true});
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([from,to]),mat));
+}
+DOMAINS.forEach((_,i)=>{const x=(i/(DOMAINS.length-1)-0.5)*10*SCALE.x;makeTick(new THREE.Vector3(x,-4.5,0),new THREE.Vector3(x,-4.85,0),0x555e7a);});
+AUTONOMY.forEach((_,i)=>{const y=(i/(AUTONOMY.length-1)-0.5)*6*SCALE.y;makeTick(new THREE.Vector3(-6,y,0),new THREE.Vector3(-6.35,y,0),0x555e7a);});
+THEMES.forEach((_,i)=>{const z=(i/(THEMES.length-1)-0.5)*10*SCALE.z;makeTick(new THREE.Vector3(-6,-4.5,z),new THREE.Vector3(-6,-4.85,z),0x555e7a);});
+
+const labelOverlay=document.createElement('div');
+labelOverlay.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:5;';
+document.body.appendChild(labelOverlay);
+
+function project(wp){
+  const v=wp.clone().project(camera);
+  return{x:(v.x*0.5+0.5)*window.innerWidth,y:(-v.y*0.5+0.5)*window.innerHeight,behind:v.z>1};
+}
+function createHTMLLabel(text,colorHex,axisKey){
+  const el=document.createElement('div');
+  el.style.cssText=`position:absolute;font-family:'IBM Plex Mono','Courier New',monospace;font-size:10px;font-weight:600;color:${colorHex};white-space:nowrap;pointer-events:none;transform:translate(-50%,-50%);text-shadow:0 0 6px rgba(255,255,255,0.9),0 0 3px rgba(255,255,255,1);letter-spacing:0.03em;padding:1px 3px;background:rgba(244,245,247,0.7);border-radius:2px;`;
+  el.textContent=text; el.dataset.axis=axisKey;
+  labelOverlay.appendChild(el); return el;
+}
+
+const xLabelData=DOMAINS.map((name,i)=>{
+  const xPos=(i/(DOMAINS.length-1)-0.5)*10*SCALE.x;
+  const short=name.length>8?name.split(/[\/ ]/)[0]:name;
+  return{el:createHTMLLabel(short,'#555e7a','x'),worldAnchor:new THREE.Vector3(xPos,-4.85,0)};
+});
+const xTitleEl=createHTMLLabel('Domain Area','#1a1e2e','xtitle');
+Object.assign(xTitleEl.style,{fontWeight:'800',fontSize:'12px',fontFamily:"'Syne','Segoe UI',Arial,sans-serif",letterSpacing:'0.06em',textTransform:'uppercase',background:'rgba(244,245,247,0.85)',padding:'2px 6px',borderRadius:'3px'});
+
+const yLabelData=AUTONOMY.map((name,i)=>{
+  const yPos=(i/(AUTONOMY.length-1)-0.5)*6*SCALE.y;
+  return{el:createHTMLLabel(name,'#555e7a','y'),worldAnchor:new THREE.Vector3(-6.35,yPos,0)};
+});
+const yTitleEl=createHTMLLabel('Autonomy Level','#1a1e2e','ytitle');
+Object.assign(yTitleEl.style,{fontWeight:'800',fontSize:'12px',fontFamily:"'Syne','Segoe UI',Arial,sans-serif",letterSpacing:'0.06em',textTransform:'uppercase',background:'rgba(244,245,247,0.85)',padding:'2px 6px',borderRadius:'3px'});
+
+const zLabelData=THEMES.map((name,i)=>{
+  const zPos=(i/(THEMES.length-1)-0.5)*10*SCALE.z;
+  return{el:createHTMLLabel(name.split(' ')[0],'#555e7a','z'),worldAnchor:new THREE.Vector3(-6,-4.85,zPos)};
+});
+const zTitleEl=createHTMLLabel('Cross-cutting Theme','#1a1e2e','ztitle');
+Object.assign(zTitleEl.style,{fontWeight:'800',fontSize:'12px',fontFamily:"'Syne','Segoe UI',Arial,sans-serif",letterSpacing:'0.06em',textTransform:'uppercase',background:'rgba(244,245,247,0.85)',padding:'2px 6px',borderRadius:'3px'});
+
+function updateAxisLabels(){
+  const xProjs=xLabelData.map(d=>project(d.worldAnchor));
+  const xAxisCenter=project(new THREE.Vector3(0,-4.85,0));
+  xLabelData.forEach((d,i)=>{
+    if(xProjs[i].behind){d.el.style.display='none';return;}
+    d.el.style.display='block';
+    let dx=xProjs[i].x-xAxisCenter.x,dy=xProjs[i].y-xAxisCenter.y;
+    const len=Math.sqrt(dx*dx+dy*dy)||1;
+    d.el.style.left=(xProjs[i].x+(dx/len)*22)+'px';
+    d.el.style.top=(xProjs[i].y+(dy/len)*22)+'px';
+  });
+  const xMid=project(new THREE.Vector3(0,-4.85,0));
+  {let dx=xMid.x-project(new THREE.Vector3(0,0,0)).x,dy=xMid.y-project(new THREE.Vector3(0,0,0)).y;
+  const len=Math.sqrt(dx*dx+dy*dy)||1;
+  xTitleEl.style.left=(xMid.x+(dx/len)*46)+'px';xTitleEl.style.top=(xMid.y+(dy/len)*46)+'px';}
+
+  const yProjs=yLabelData.map(d=>project(d.worldAnchor));
+  const yAxisCenter=project(new THREE.Vector3(-6.35,0,0));
+  yLabelData.forEach((d,i)=>{
+    if(yProjs[i].behind){d.el.style.display='none';return;}
+    d.el.style.display='block';
+    let dx=yProjs[i].x-yAxisCenter.x,dy=yProjs[i].y-yAxisCenter.y;
+    const len=Math.sqrt(dx*dx+dy*dy)||1;
+    d.el.style.left=(yProjs[i].x+(dx/len)*28)+'px';
+    d.el.style.top=(yProjs[i].y+(dy/len)*28)+'px';
+  });
+  const yTop=project(new THREE.Vector3(-6,5.3,0));
+  yTitleEl.style.left=(yTop.x-10)+'px';yTitleEl.style.top=(yTop.y-22)+'px';
+
+  const zProjs=zLabelData.map(d=>project(d.worldAnchor));
+  const zAxisCenter=project(new THREE.Vector3(-6,-4.85,0));
+  zLabelData.forEach((d,i)=>{
+    if(zProjs[i].behind){d.el.style.display='none';return;}
+    d.el.style.display='block';
+    let dx=zProjs[i].x-zAxisCenter.x,dy=zProjs[i].y-zAxisCenter.y;
+    const len=Math.sqrt(dx*dx+dy*dy)||1;
+    d.el.style.left=(zProjs[i].x+(dx/len)*22)+'px';
+    d.el.style.top=(zProjs[i].y+(dy/len)*22)+'px';
+  });
+  const zMid=project(new THREE.Vector3(-6,-4.85,0));
+  {let dx=zMid.x-project(new THREE.Vector3(-6,0,0)).x,dy=zMid.y-project(new THREE.Vector3(-6,0,0)).y;
+  const len=Math.sqrt(dx*dx+dy*dy)||1;
+  zTitleEl.style.left=(zMid.x+(dx/len)*46)+'px';zTitleEl.style.top=(zMid.y+(dy/len)*46)+'px';}
+}
+
+// ─── NODES ───
+const meshes=[],sphereMeshes=[];
+const raycaster=new THREE.Raycaster();
+const mouse=new THREE.Vector2();
+let selectedMesh=null,selectionRing=null,highlightedMeshes=[],domainRings=[];
+
+function regToSize(r){return[0.18,0.24,0.32][r];}
+function valueToColor(v){return VALUE_COLORS[v]||0x0ea87a;}
+
+function addNode(data,isCovered,origIdx){
+  const pos=toPos(data.domain,data.autonomy,data.theme,data.jitter);
+  const size=regToSize(data.regIntensity);
+  const color=isCovered?valueToColor(data.valueDriver):0xaab0c8;
+  const mat=new THREE.MeshStandardMaterial({color,emissive:isCovered?color:0x8890aa,emissiveIntensity:isCovered?0.4:0.05,metalness:0.2,roughness:0.5,transparent:true,opacity:isCovered?1.0:0.45,wireframe:!isCovered});
+  const mesh=new THREE.Mesh(new THREE.SphereGeometry(size,16,16),mat);
+  mesh.position.copy(pos); mesh.userData={data,isCovered,origIdx};
+  scene.add(mesh); meshes.push(mesh);
+
+  const hitMesh=new THREE.Mesh(new THREE.SphereGeometry(size+0.12,8,8),new THREE.MeshBasicMaterial({visible:false,transparent:true,opacity:0}));
+  hitMesh.position.copy(pos); hitMesh.userData={data,isCovered,origIdx,isHitProxy:true};
+  scene.add(hitMesh); sphereMeshes.push(hitMesh);
+
+  if(isCovered){
+    const ring=new THREE.Mesh(new THREE.RingGeometry(size+0.04,size+0.14,24),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,transparent:true,opacity:0.25}));
+    ring.position.copy(pos); ring.lookAt(camera.position); ring.userData={isRing:true};
+    scene.add(ring);
+  }
+}
+covered.forEach((d,i)=>addNode(d,true,i));
+opportunities.forEach((d,i)=>addNode(d,false,covered.length+i));
+
+// ─── ORBIT ───
+let isDragging=false,prevMouse={x:0,y:0};
+let spherical={theta:0.8,phi:1.1,radius:24};
+renderer.domElement.addEventListener('mousedown',e=>{isDragging=true;prevMouse={x:e.clientX,y:e.clientY};});
+window.addEventListener('mouseup',()=>isDragging=false);
+window.addEventListener('mousemove',e=>{
+  if(isDragging){
+    spherical.theta-=(e.clientX-prevMouse.x)*0.005;
+    spherical.phi-=(e.clientY-prevMouse.y)*0.005;
+    spherical.phi=Math.max(0.3,Math.min(Math.PI-0.1,spherical.phi));
+    prevMouse={x:e.clientX,y:e.clientY};
+  }
+  mouse.x=(e.clientX/window.innerWidth)*2-1;
+  mouse.y=-(e.clientY/window.innerHeight)*2+1;
+  checkHover(e.clientX,e.clientY);
+});
+renderer.domElement.addEventListener('wheel',e=>{
+  spherical.radius+=e.deltaY*0.02;
+  spherical.radius=Math.max(8,Math.min(50,spherical.radius));
+});
+
+// ─── TOOLTIP ───
+const tooltip=document.getElementById('tooltip');
+const ttTitle=document.getElementById('tt-title');
+const ttMeta=document.getElementById('tt-meta');
+
+function showTooltip(data,isCovered,x,y){
+  ttTitle.textContent=data.title;
+  ttMeta.innerHTML=`Domain: <span>${DOMAINS[data.domain]}</span><br>Autonomy: <span>${AUTONOMY[data.autonomy]}</span><br>Theme: <span>${THEMES[data.theme]}</span><br>Regulation: <span>${['Low','Med','High'][data.regIntensity]}</span><br>Value driver: <span>${data.valueDriver}</span><br>${isCovered?`Expert: <span>${data.expert}</span><br>`:''}${data.summary?`<br><i style="color:var(--text)">${data.summary}</i>`:''}${!isCovered?`<br><i style="color:var(--accent2)">⚠ Coverage gap — opportunity</i>`:''}`;
+  tooltip.style.display='block';
+  tooltip.style.left=(x+16)+'px';
+  tooltip.style.top=(y-20)+'px';
+}
+function hideTooltip(){tooltip.style.display='none';}
+
+function checkHover(cx,cy){
+  if(selectedMesh)return;
+  raycaster.setFromCamera(mouse,camera);
+  const hits=raycaster.intersectObjects(sphereMeshes,false);
+  if(hits.length>0){
+    const{data,isCovered}=hits[0].object.userData;
+    showTooltip(data,isCovered,cx,cy);
+    document.body.style.cursor='pointer';
+  } else {hideTooltip();document.body.style.cursor='default';}
+}
+
+function clearSelection(){
+  if(selectedMesh){selectedMesh.scale.set(1,1,1);selectedMesh=null;}
+  if(selectionRing){scene.remove(selectionRing);selectionRing.geometry.dispose();selectionRing=null;}
+  domainRings.forEach(r=>{scene.remove(r);r.geometry.dispose();}); domainRings=[];
+  highlightedMeshes.forEach(m=>m.scale.set(1,1,1)); highlightedMeshes=[];
+  document.querySelectorAll('.topic-item').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.coverage-bar-row').forEach(el=>el.classList.remove('domain-active'));
+  hideTooltip(); tooltip.classList.remove('pinned'); tooltip.style.zIndex='20';
+}
+
+function makeOutlineRing(mesh){
+  const sz=mesh.geometry.parameters.radius;
+  const ring=new THREE.Mesh(new THREE.RingGeometry(sz*1.7,sz*2.1,32),new THREE.MeshBasicMaterial({color:0x1a1e2e,side:THREE.DoubleSide,transparent:true,opacity:0.85,depthTest:false}));
+  ring.position.copy(mesh.position); ring.lookAt(camera.position);
+  ring.userData={isSelectionRing:true,trackedMesh:mesh};
+  scene.add(ring); return ring;
+}
+
+function focusTopic(origIdx){
+  clearSelection();
+  const mesh=meshes.find(m=>m.userData.origIdx===origIdx&&m.userData.isCovered);
+  if(!mesh)return;
+  mesh.scale.set(1.6,1.6,1.6); selectedMesh=mesh;
+  selectionRing=makeOutlineRing(mesh);
+  document.querySelectorAll('.topic-item').forEach(el=>el.classList.remove('active'));
+  const activeItem=document.querySelector(`.topic-item[data-idx="${origIdx}"]`);
+  if(activeItem){activeItem.classList.add('active');activeItem.scrollIntoView({behavior:'smooth',block:'nearest'});}
+  const sp=mesh.position.clone().project(camera);
+  showTooltip(mesh.userData.data,true,(sp.x*0.5+0.5)*window.innerWidth,(-sp.y*0.5+0.5)*window.innerHeight);
+  tooltip.classList.add('pinned'); tooltip.style.zIndex='25';
+}
+
+function focusDomain(domainName){
+  clearSelection();
+  const di=DOMAINS.indexOf(domainName);
+  const dm=meshes.filter(m=>m.userData.isCovered&&m.userData.data.domain===di);
+  dm.forEach(m=>{
+    m.scale.set(1.5,1.5,1.5);
+    domainRings.push(makeOutlineRing(m));
+    const el=document.querySelector(`.topic-item[data-idx="${m.userData.origIdx}"]`);
+    if(el)el.classList.add('active');
+  });
+  highlightedMeshes=dm;
+}
+
+renderer.domElement.addEventListener('click',e=>{
+  const mx=(e.clientX/window.innerWidth)*2-1;
+  const my=-(e.clientY/window.innerHeight)*2+1;
+  raycaster.setFromCamera(new THREE.Vector2(mx,my),camera);
+  const hits=raycaster.intersectObjects(sphereMeshes,false);
+  if(hits.length>0){
+    const{origIdx,isCovered,data}=hits[0].object.userData;
+    if(isCovered)focusTopic(origIdx);
+    else{clearSelection();showTooltip(data,false,e.clientX,e.clientY);}
+  } else clearSelection();
+});
+
+function updateRings(){
+  scene.children.forEach(obj=>{
+    if(!obj.userData)return;
+    if(obj.userData.isRing)obj.lookAt(camera.position);
+    if(obj.userData.isSelectionRing){
+      obj.lookAt(camera.position);
+      if(obj.userData.trackedMesh)obj.position.copy(obj.userData.trackedMesh.position);
+    }
+  });
+}
+
+function updateCamera(){
+  camera.position.x=spherical.radius*Math.sin(spherical.phi)*Math.sin(spherical.theta);
+  camera.position.y=spherical.radius*Math.cos(spherical.phi);
+  camera.position.z=spherical.radius*Math.sin(spherical.phi)*Math.cos(spherical.theta);
+  camera.lookAt(0,0,0);
+}
+
+// ─── TOPIC LIST ───
+function rebuildTopicList(){
+  const list=document.getElementById('topic-list');
+  list.innerHTML='';
+  const sorted=covered.map((d,i)=>({...d,origIdx:i})).sort((a,b)=>a.theme-b.theme||a.title.localeCompare(b.title));
+  let lastTheme=null;
+  sorted.forEach(d=>{
+    if(d.theme!==lastTheme){
+      lastTheme=d.theme;
+      const h=document.createElement('div');
+      h.style.cssText="padding:8px 16px 3px;font-family:'Syne','Segoe UI',Arial,sans-serif;font-size:0.70rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);border-top:1px solid var(--border);margin-top:4px;background:rgba(14,168,122,0.04);";
+      h.textContent=THEMES[d.theme]; list.appendChild(h);
+    }
+    const el=document.createElement('div');
+    el.className='topic-item'; el.dataset.idx=d.origIdx;
+    const dotColor='#'+valueToColor(d.valueDriver).toString(16).padStart(6,'0');
+    el.innerHTML=`<div class="topic-dot" style="background:${dotColor}"></div><span>${d.title}</span>`;
+    el.addEventListener('click',()=>focusTopic(d.origIdx));
+    list.appendChild(el);
+  });
+  document.getElementById('article-count-badge').textContent=covered.length+' mapped';
+}
+
+function coverageColor(c){return c===0?'#c8d4e8':c===1?'#7aacd4':c===2?'#3a7fc4':'#1558a8';}
+
+function rebuildCoverageBars(){
+  const bc=document.getElementById('coverage-bars');
+  bc.innerHTML='';
+  const ac={};
+  covered.forEach(d=>{const n=DOMAINS[d.domain];ac[n]=(ac[n]||0)+1;});
+  DOMAINS.map(n=>({name:n,count:ac[n]||0})).sort((a,b)=>b.count-a.count).forEach(({name,count})=>{
+    const row=document.createElement('div');
+    row.className='coverage-bar-row'; row.dataset.domain=name;
+    const pct=Math.min(100,count/5*100);
+    const label=count===0?`<span style="color:#9aaccb;font-style:italic">gap</span>`:`<span style="color:#1558a8">${count} article${count!==1?'s':''}</span>`;
+    row.innerHTML=`<div class="coverage-bar-label">${name} ${label}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.max(pct,3)}%;background:${coverageColor(count)}"></div></div>`;
+    if(count>0){
+      row.addEventListener('click',()=>{const isA=row.classList.contains('domain-active');clearSelection();if(!isA){row.classList.add('domain-active');focusDomain(name);}});
+    }
+    bc.appendChild(row);
+  });
+  const note=document.createElement('div');
+  note.style.cssText='font-size:0.62rem;color:var(--dim);margin-top:8px;padding-top:6px;border-top:1px solid var(--border);line-height:1.5';
+  note.innerHTML='💡 <em>"Trust by Design"</em> appears under <strong>Platform / Infra</strong>';
+  bc.appendChild(note);
+}
+
+// ─── ANIMATE ───
+let t=0;
+function animate(){
+  requestAnimationFrame(animate);
+  t+=0.008;
+  updateCamera(); updateRings(); updateAxisLabels();
+  meshes.forEach((mesh,i)=>{
+    if(!mesh.userData.isCovered)return;
+    if(mesh===selectedMesh)mesh.material.emissiveIntensity=0.8+0.2*Math.sin(t*3);
+    else if(highlightedMeshes.includes(mesh))mesh.material.emissiveIntensity=0.6+0.15*Math.sin(t*2+i);
+    else mesh.material.emissiveIntensity=0.25+0.1*Math.sin(t+i*0.7);
+  });
+  if(selectedMesh){
+    const sp=selectedMesh.position.clone().project(camera);
+    tooltip.style.left=((sp.x*0.5+0.5)*window.innerWidth+16)+'px';
+    tooltip.style.top=((-sp.y*0.5+0.5)*window.innerHeight-20)+'px';
+  }
+  renderer.render(scene,camera);
+}
+
+rebuildTopicList();
+rebuildCoverageBars();
+animate();
+
+window.addEventListener('resize',()=>{
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
+</script>
+</body>
+</html>
